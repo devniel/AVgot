@@ -1,0 +1,17 @@
+{
+	"name":"Aula Virtual",
+	"version":"1.0",
+	"manifest_version":2,
+	"description":"The first extensions that I made.",
+	"content_scripts": [
+    {
+      "matches": ["http://webaloe.ulima.edu.pe/portalUL/av/servlets/ComandoListarAulaVirtual*"],
+      "js":["aula.js"],
+      "all_frames":true,
+      "run_at":"document_end"
+    }],
+    "permissions":[
+    	"tabs",
+    	"http://*/*"
+    ]
+}

@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html>
+<head>
+	<meta charset="UTF-8" />
+	<title>Aula Virtual to ZIP</title>
+	<style type="text/css">
+
+	/* ESTILOS APLICADOS PARA EFECTOS DEL CASO */
+
+		* {
+			font:11px tahoma;
+			margin:0;
+		}
+
+		body {
+			margin:20px;
+		}
+
+		#downbox {
+			display:none;
+		}
+
+		;
+		body {
+			background:#fff;
+			width:500px;
+			margin:20px auto;
+		}
+
+		label,input,textarea,h1,h2,p {
+			font-family:Arial, sans-serif;
+			font-size:12pt;
+		}
+
+		input,textarea {
+			border:solid 1px #aaa;
+			width:98%;
+			padding:4px;
+		}
+
+		label {
+			font-weight:700;
+		}
+
+		h1 {
+			font-size:30pt;
+			font-weight:700;
+			letter-spacing:-1px;
+		}
+
+		h2 {
+			font-size:14pt;
+		}
+
+		pre {
+			overflow:auto;
+			background:#222;
+			color:#ccc;
+			padding:10px;
+		}
+
+	</style>
+
+	<!-- SCRIPTS NECESARIOS PARA EL FUNCIONAMIENTO DEL PROYECTO -->
+	<script type="text/javascript" src="/js/jszip.js"></script>
+	<script type="text/javascript" src="/js/jszip-inflate.js"></script>
+	<script type="text/javascript" src="/js/jszip-deflate.js"></script>
+	<script type="text/javascript" src="/js/jszip-load.js"></script>
+	<script type="text/javascript" src="/downloadify/js/swfobject.js"></script>
+	<script type="text/javascript" src="/downloadify/js/downloadify.min.js"></script>
+	<script type="text/javascript" src="http://code.jquery.com/jquery-1.7.2.min.js"></script>
+
+	<script type="text/javascript">
+
+		window.onload = function(){
+
+			// FUNCIÓN QUE LEE EL CÓDIGO HTML DEL IFRAME REFERENTE A SEMANAS DEL AULA VIRTUAL Y OBTIENE EN UN ARREGLO
+			// LOS CURSOS POR SEMANA.
+
+			var getFilesByWeek = function(){
+
+				var AulaVirtual = document.getElementById("AV");
+				var rows = AulaVirtual.contentDocument.body.getElementsByTagName("tr");
+				var i = 0
+				var weeks = [];
+
+				try{
+					while(i< rows.length){
+
+						var tr = rows.item(i);
+						var txt = $(tr).text().replace(/^\s+|\s+$/g,"");
+						
+						if(txt == ""){
+							i++;
+							continue;
+						}
+
+						if(txt.match(/^Semana/)!= null && txt.length <= 9){
+							weeks.push([]);
+							i++;
+							tr = rows.item(i);
+						}
+
+						var tds = tr.getElementsByTagName("td");
+						var url = AulaVirtual.baseURI + $(tds.item(0)).find("a").attr("href");
+
+						var file = {
+							url : url,
+							name : $(tds.item(1)).text().replace(/^\s+|\s+$/g,""),
+							size : $(tds.item(2)).text().replace(/^\s+|\s+$/g,""),
+							date : $(tds.item(3)).text().replace(/^\s+|\s+$/g,"")
+						}
+
+						if(weeks.length > 0)weeks[weeks.length - 1].push(file);
+
+						i++;
+
+
+					}
+				}catch(e){
+					console.error("PRIMER ERROR",e);
+				}
+
+				return weeks;
+			};
+
+			// APLICACIÓN DE DOWNLOADIFY
+
+			// 'downloadify' SE REFIERE AL ELEMENTO DE LA PÁGINA WEB QUE SERÁ REEMPLAZADO POR EL BOTÓN.
+
+				Downloadify.create('downloadify',{
+				    // NOMBRE POR DEFECTO DEL ARCHIVO A DESCARGAR
+				    filename: function(){
+						  return "download.zip";
+				    },
+				    // DATOS A DESCARGAR
+				    data: function(){
+				    	try {
+							var i = 0;
+							var zip = new JSZip();
+
+							// SE OBTIENEN LAS SEMANAS Y SUS CURSOS EN UN ARREGLO
+							var weeks = getFilesByWeek();
+
+							for(var i=0;i<weeks.length;i++){
+
+								var name = "Semana " + (i+1);
+								// SE CREAN CARPETAS POR CADA SEMANA
+								zip.folder(name);
+
+								for(var j=0;j<weeks[i].length;j++){
+
+									// SE HACE UN REQUEST A LAS URL DE LAS SEMANAS PARA OBTENER LOS ARCHIVOS POR CADA SEMANA
+									var req = new XMLHttpRequest();
+									req.open("GET",weeks[i][j].url,false);
+									req.overrideMimeType('text/plain; charset=x-user-defined'); // IMPORTANTE
+									req.send();
+
+									// IMPORTANTE CONVERSIÓN A BYTES
+
+									var bytes = "";
+
+									// https://github.com/Stuk/jszip/issues/6
+									for (var k = 0; k < req.response.length; k++) {
+										bytes += String.fromCharCode(req.response.charCodeAt(k) & 0xff);
+									}
+
+									// NOMBRE DEL ARCHIVO (LEÍDO DESDE EL HTML)
+									var fn = weeks[i][j].name;
+
+									// AGREGAR ARCHIVO AL .ZI
+								 	try{
+										zip.folder(name).file(fn, bytes, {base64: false,binary:true});
+									}catch(e){
+										console.error("ERROR",e);
+									}
+
+								}
+							};
+
+						}catch(e){
+							console.error("ERROR");
+						}
+
+						// DESPUÉS DEL BUCLE SE GENERA EL ZIP CON UN ENCODING DE BASE64, PARA LUEGO SER USADO POR EL DOWNLOADIFY
+				      	var content = zip.generate({base64:"true"});
+				      	return content;
+				    },
+				    // EVENTO QUE SUCEDE CUANDO SE TERMINAN DE GUARDAR LOS ARCHIVOS
+				    onComplete: function(){ 
+				      alert('Archivos guardados exitósamente!'); 
+				    },
+				    // EVENTO QUE SUCEDE CUANDO SE CANCELA EL GUARDADO DE ARCHIVOS
+				    onCancel: function(){ 
+				      alert('Descarga cancelada.');
+				    },
+				    // EVENTO QUE SE LANZA CUANDO SE DETECTA ERROR ALGUNO EN EL GUARDADO DE ARCHIVOS
+				    onError: function(){ 
+				      alert('Debes descargar algún archivo.'); 
+				    },
+				    // ARCHIVO SWF REALIZA EL ALGORITMO PARA GUARDAR EL ARCHIVO
+				    swf: '/downloadify/media/downloadify.swf',
+				    // IMAGEN DEL BOTÓN USADO POR EL SWF o DOWNLOADIFY.SWF
+				    downloadImage: '/downloadify/images/download.png',
+				    // ANCHO DEL BOTÓN
+				    width: 100,
+				    // ALTO DEL BOTÓN
+				    height: 30,
+				    // BOTÓN TRANSPARENTE
+				    transparent: false,
+				    // INCLUIR EL CONTENIDO ORIGINAL DEL ELEMENTO REEMPLAZADO
+				    append: false,
+				    // TIPO DE DATOS A GUARDAR, DEBE SER BASE64
+				    dataType : "base64"
+				  });
+		}
+		
+
+	</script>
+</head>
+<body>
+
+	<!-- ESTE ELEMENTO SERÁ REEMPLAZADO POR EL BOTÓN SWF -->
+	<p id="downloadify">Necesitas el plug-in Flash instalado para descargar este archivo.</p>
+
+	<!-- IFRAME PERTENECIENTE A LOS ARCHIVOS POR SEMANA DEL AULA VIRTUAL -->
+	<iframe id="AV" src="aula.html" width="1200" height="1000px"></iframe>
+
+</body>
+</html>
